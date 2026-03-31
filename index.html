@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Travesía de Colón - Mapa Interactivo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fondamento:ital@0;1&family=MedievalSharp&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sea: #c4b494;
+            --land: #8b7355;
+            --ink: #2b1d0e;
+            --path: #8b0000;
+            --gold: #d4af37;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #1a1a1a;
+            font-family: 'Fondamento', cursive;
+            color: var(--ink);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* Contenedor del Mapa */
+        #map-container {
+            position: relative;
+            width: 95vw;
+            height: 85vh;
+            background: url('https://www.transparenttextures.com/patterns/old-map.png'), #e4d5b7;
+            border: 15px solid #3d2b1f;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.5);
+            border-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='75' height='75'%3E%3Crect width='75' height='75' fill='%233d2b1f'/%3E%3Cpath d='M0 0l75 75M75 0L0 75' stroke='%232d1b0f' stroke-width='2'/%3E%3C/svg%3E") 30;
+            overflow: hidden;
+        }
+
+        /* Título */
+        .header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+        }
+
+        .header h1 {
+            font-family: 'MedievalSharp', cursive;
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+        }
+
+        /* El Canvas para las flechas y rutas */
+        #map-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+        }
+
+        /* Estilo de los puntos de parada (Hitbox) */
+        .landmark {
+            fill: var(--path);
+            cursor: pointer;
+            transition: r 0.3s, fill 0.3s;
+        }
+
+        .landmark:hover {
+            fill: var(--gold);
+            r: 12;
+        }
+
+        /* Línea de ruta animada */
+        .route-line {
+            fill: none;
+            stroke: var(--path);
+            stroke-width: 3;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: draw 8s ease-in-out forwards;
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+            cursor: pointer;
+        }
+
+        .route-line:hover {
+            stroke: var(--gold);
+            stroke-width: 5;
+        }
+
+        @keyframes draw {
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* Cuadro de Información (InfoBox) */
+        #info-box {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 350px;
+            background: rgba(245, 239, 224, 0.95);
+            padding: 20px;
+            border: 2px double var(--land);
+            border-radius: 5px;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        #info-box.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #info-box h3 {
+            color: var(--path);
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--land);
+            font-family: 'MedievalSharp', serif;
+        }
+
+        #info-box p {
+            font-size: 1.05rem;
+            line-height: 1.4;
+        }
+
+        /* Rosa de los vientos decorativa */
+        .compass {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            width: 150px;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Etiquetas de continentes */
+        .label {
+            position: absolute;
+            font-family: 'MedievalSharp';
+            font-size: 1.5rem;
+            opacity: 0.4;
+            letter-spacing: 5px;
+            pointer-events: none;
+        }
+
+        #label-europe { top: 25%; left: 80%; }
+        #label-africa { top: 60%; left: 85%; }
+        #label-america { top: 45%; left: 10%; }
+
+    </style>
+</head>
+<body>
+
+<div id="map-container">
+    <div class="header">
+        <h1>Diario de Navegación: 1492</h1>
+        <p>Pasa el cursor por la ruta roja para descubrir la historia</p>
+    </div>
+
+    <img src="https://upload.wikimedia.org/wikipedia/commons/d/d4/Compass_rose_paleo.svg" class="compass" alt="Rosa de los vientos">
+
+    <div class="label" id="label-europe">EUROPA</div>
+    <div class="label" id="label-africa">AFRICA</div>
+    <div class="label" id="label-america">LAS INDIAS</div>
+
+    <svg id="map-svg" viewBox="0 0 1000 600">
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="maroon" />
+            </marker>
+        </defs>
+
+        <path id="route1" class="route-line" 
+              d="M 850,180 Q 750,250 820,320 T 450,380 T 150,420" 
+              marker-mid="url(#arrowhead)" />
+
+        <circle class="landmark" cx="850" cy="180" r="8" data-title="Puerto de Palos" data-info="3 de Agosto de 1492: Colón parte con tres naves: La Pinta, La Niña y la Santa María. El objetivo era llegar a Asia por el oeste." />
+        <circle class="landmark" cx="810" cy="310" r="8" data-title="Islas Canarias" data-info="6 de Agosto - 6 de Septiembre: Escala técnica para reparaciones en La Pinta y reabastecimiento de víveres. Fue la última tierra firme antes del gran salto." />
+        <circle class="landmark" cx="550" cy="360" r="8" data-title="El Mar de los Sargazos" data-info="Septiembre: Los marineros se asustan al ver algas flotando, pensando que encallarían. El descontento y el miedo al abismo empiezan a crecer." />
+        <circle class="landmark" cx="300" cy="400" r="8" data-title="El Intento de Motín" data-info="10 de Octubre: La tripulación, desesperada tras semanas sin ver tierra, intenta sublevarse. Colón pide 3 días más de margen." />
+        <circle class="landmark" cx="150" cy="420" r="10" data-title="¡Tierra a la Vista!" data-info="12 de Octubre de 1492: Rodrigo de Triana avista tierra. Desembarcan en Guanahaní (Bahamas), bautizada como San Salvador. ¡El mundo cambió para siempre!" />
+    </svg>
+
+    <div id="info-box">
+        <h3 id="info-title">Punto de interés</h3>
+        <p id="info-text">Selecciona un punto del mapa para leer el diario de a bordo.</p>
+    </div>
+</div>
+
+<script>
+    const landmarks = document.querySelectorAll('.landmark');
+    const infoBox = document.getElementById('info-box');
+    const infoTitle = document.getElementById('info-title');
+    const infoText = document.getElementById('info-text');
+    const route = document.getElementById('route1');
+
+    // Función para mostrar información
+    function showInfo(title, text) {
+        infoTitle.innerText = title;
+        infoText.innerHTML = text;
+        infoBox.classList.add('active');
+    }
+
+    // Eventos para los puntos (círculos)
+    landmarks.forEach(point => {
+        point.addEventListener('mouseenter', () => {
+            showInfo(point.getAttribute('data-title'), point.getAttribute('data-info'));
+        });
+        point.addEventListener('mouseleave', () => {
+            infoBox.classList.remove('active');
+        });
+    });
+
+    // Evento especial para la línea de ruta (general)
+    route.addEventListener('mouseenter', () => {
+        showInfo("Primer Viaje de Colón", "Salió de Palos de la Frontera en 1492 financiado por los Reyes Católicos. Esta línea roja representa los más de 2 meses de angustia y descubrimiento en el Océano Atlántico.");
+    });
+    
+    route.addEventListener('mouseleave', () => {
+        infoBox.classList.remove('active');
+    });
+
+</script>
+
+</body>
+</html>
