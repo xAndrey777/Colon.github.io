@@ -1,238 +1,599 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Travesía de Colón - Mapa Interactivo</title>
-    <link href="https://fonts.googleapis.com/css2?family=Fondamento:ital@0;1&family=MedievalSharp&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --sea: #c4b494;
-            --land: #8b7355;
-            --ink: #2b1d0e;
-            --path: #8b0000;
-            --gold: #d4af37;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Gran Travesía de 1492</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1208;
+    --parch: #f5efe0;
+    --gold: #c9a84c;
+    /* Colores para el efecto cristal */
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-fallback: rgba(26, 18, 8, 0.9); /* Para navegadores antiguos */
+  }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            background-color: #1a1a1a;
-            font-family: 'Fondamento', cursive;
-            color: var(--ink);
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
+  body {
+    background: var(--ink);
+    font-family: 'Crimson Pro', serif;
+    color: var(--parch);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
 
-        /* Contenedor del Mapa */
-        #map-container {
-            position: relative;
-            width: 95vw;
-            height: 85vh;
-            background: url('https://www.transparenttextures.com/patterns/old-map.png'), #e4d5b7;
-            border: 15px solid #3d2b1f;
-            box-shadow: inset 0 0 100px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.5);
-            border-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='75' height='75'%3E%3Crect width='75' height='75' fill='%233d2b1f'/%3E%3Cpath d='M0 0l75 75M75 0L0 75' stroke='%232d1b0f' stroke-width='2'/%3E%3C/svg%3E") 30;
-            overflow: hidden;
-        }
+  /* ── Fondo: Mapa Antiguo (Se mantiene detrás) ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+        url('https://www.transparenttextures.com/patterns/old-map.png'), /* Textura */
+        url('https://upload.wikimedia.org/wikipedia/commons/e/e4/Cantino_planisphere.jpg'); /* Mapa real histórico */
+    background-size: cover;
+    background-position: center;
+    filter: sepia(0.8) contrast(1.2) brightness(0.4); /* Efecto envejecido y oscuro */
+    z-index: 0;
+  }
 
-        /* Título */
-        .header {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            text-align: center;
-            z-index: 10;
-        }
+  /* ── Deck (Contenedor de diapositivas) ── */
+  #deck {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+  }
 
-        .header h1 {
-            font-family: 'MedievalSharp', cursive;
-            font-size: 2.5rem;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
-        }
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 6vw;
+    opacity: 0;
+    transform: translateY(40px) scale(0.97);
+    transition: opacity .7s cubic-bezier(.4,0,.2,1), transform .7s cubic-bezier(.4,0,.2,1);
+    pointer-events: none;
+  }
 
-        /* El Canvas para las flechas y rutas */
-        #map-svg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 5;
-        }
+  .slide.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: all;
+  }
 
-        /* Estilo de los puntos de parada (Hitbox) */
-        .landmark {
-            fill: var(--path);
-            cursor: pointer;
-            transition: r 0.3s, fill 0.3s;
-        }
+  .slide.exit {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.97);
+    transition: opacity .5s ease, transform .5s ease;
+  }
 
-        .landmark:hover {
-            fill: var(--gold);
-            r: 12;
-        }
+  /* ── NUEVO: Efecto Cristal (Glassmorphism) en Paneles ── */
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 15px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    padding: 2.5rem;
+    max-width: 900px;
+    width: 100%;
+  }
 
-        /* Línea de ruta animada */
-        .route-line {
-            fill: none;
-            stroke: var(--path);
-            stroke-width: 3;
-            stroke-dasharray: 1000;
-            stroke-dashoffset: 1000;
-            animation: draw 8s ease-in-out forwards;
-            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
-            cursor: pointer;
-        }
+  /* Soporte para navegadores que no tienen backdrop-filter */
+  @supports not (backdrop-filter: blur(12px)) {
+    .glass-panel { background: var(--glass-fallback); }
+  }
 
-        .route-line:hover {
-            stroke: var(--gold);
-            stroke-width: 5;
-        }
+  /* ── Portada (Slide 0) ── */
+  .cover .ornament {
+    font-size: 2rem;
+    color: var(--gold);
+    letter-spacing: .4em;
+    margin-bottom: 2rem;
+    opacity: .7;
+    text-align: center;
+  }
 
-        @keyframes draw {
-            to { stroke-dashoffset: 0; }
-        }
+  .cover h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.8rem, 7vw, 6rem);
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.1;
+    color: var(--parch);
+    text-shadow: 0 2px 40px rgba(201, 168, 76, 0.5);
+    margin-bottom: 1.5rem;
+  }
 
-        /* Cuadro de Información (InfoBox) */
-        #info-box {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 350px;
-            background: rgba(245, 239, 224, 0.95);
-            padding: 20px;
-            border: 2px double var(--land);
-            border-radius: 5px;
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
-            transform: translateY(20px);
-            opacity: 0;
-            transition: all 0.4s ease;
-            z-index: 20;
-            pointer-events: none;
-        }
+  .cover h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
 
-        #info-box.active {
-            opacity: 1;
-            transform: translateY(0);
-        }
+  .cover p {
+    font-size: 1.25rem;
+    color: #b8a882;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    font-weight: 300;
+    text-align: center;
+  }
 
-        #info-box h3 {
-            color: var(--path);
-            margin-bottom: 10px;
-            border-bottom: 1px solid var(--land);
-            font-family: 'MedievalSharp', serif;
-        }
+  .cover .line {
+    width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 2rem auto;
+  }
 
-        #info-box p {
-            font-size: 1.05rem;
-            line-height: 1.4;
-        }
+  /* ── Diapositivas de Contenido (Hitos) ── */
+  .topic-header {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+    margin-bottom: .6rem;
+  }
 
-        /* Rosa de los vientos decorativa */
-        .compass {
-            position: absolute;
-            top: 40px;
-            right: 40px;
-            width: 150px;
-            opacity: 0.6;
-            pointer-events: none;
-        }
+  .topic-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 4rem;
+    font-weight: 700;
+    color: var(--gold);
+    opacity: .25;
+    line-height: 1;
+    min-width: 3.5rem;
+  }
 
-        /* Etiquetas de continentes */
-        .label {
-            position: absolute;
-            font-family: 'MedievalSharp';
-            font-size: 1.5rem;
-            opacity: 0.4;
-            letter-spacing: 5px;
-            pointer-events: none;
-        }
+  .topic h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 700;
+    font-style: italic;
+    color: var(--parch);
+    line-height: 1.15;
+  }
 
-        #label-europe { top: 25%; left: 80%; }
-        #label-africa { top: 60%; left: 85%; }
-        #label-america { top: 45%; left: 10%; }
+  .topic h2 .date {
+    display: block;
+    font-size: .55em;
+    font-style: normal;
+    font-weight: 400;
+    color: var(--gold);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-top: .3rem;
+  }
 
-    </style>
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold) 0%, transparent 100%);
+    margin: 1.2rem 0;
+    opacity: .4;
+  }
+
+  .meaning {
+    font-size: clamp(1rem, 1.8vw, 1.22rem);
+    color: #d9cdb4;
+    line-height: 1.8;
+    margin-bottom: 1.4rem;
+    font-weight: 300;
+  }
+
+  .meaning strong { color: var(--gold); font-weight: 400; }
+
+  .quote-box {
+    border-left: 2px solid var(--gold);
+    padding-left: 1.2rem;
+    margin-bottom: 1.2rem;
+    font-style: italic;
+    color: #b8a882;
+    font-size: 0.95rem;
+  }
+
+  /* ── Marcadores visuales de Mapa (Coordenadas) ── */
+  .map-marker {
+    position: absolute;
+    bottom: 2rem;
+    right: 2rem;
+    font-size: 0.7rem;
+    color: #5a5040;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── Navegación (Mantenida exactamente igual) ── */
+  #progress {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #ffffff0a;
+    z-index: 100;
+  }
+
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), #e8c97a);
+    transition: width .6s ease;
+    box-shadow: 0 0 10px var(--gold);
+  }
+
+  #nav {
+    position: fixed;
+    bottom: 2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    z-index: 100;
+    /* Efecto cristal en la barra de navegación */
+    background: rgba(14, 11, 6, 0.5);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+    border-radius: 50px;
+    padding: .7rem 1.6rem;
+  }
+
+  #nav button {
+    background: none;
+    border: none;
+    color: var(--gold);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: .3rem .7rem;
+    border-radius: 50px;
+    transition: background .2s, color .2s;
+    line-height: 1;
+  }
+
+  #nav button:hover { background: rgba(201, 168, 76, 0.2); }
+  #nav button:disabled { opacity: .2; cursor: default; }
+
+  #counter {
+    font-family: 'Playfair Display', serif;
+    font-size: .9rem;
+    color: #8a7d60;
+    min-width: 4rem;
+    text-align: center;
+  }
+
+  /* ── Índice (Mantenido exactamente igual) ── */
+  #index-btn {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.8rem;
+    z-index: 200;
+    /* Efecto cristal */
+    background: rgba(14, 11, 6, 0.5);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+    color: var(--gold);
+    font-size: .75rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: .5rem 1.2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  #index-btn:hover { background: rgba(201, 168, 76, 0.2); }
+
+  #index-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(16px);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #index-modal.open { display: flex; }
+
+  .index-inner {
+    /* Efecto cristal en el modal */
+    background: rgba(20, 16, 9, 0.7);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 2.5rem 3rem;
+    max-width: 700px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .index-inner h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+
+  .index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: .6rem;
+  }
+
+  .index-item {
+    padding: .6rem 1rem;
+    border: 1px solid #ffffff12;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .2s;
+    font-size: .9rem;
+    color: #c8bfa4;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .index-item:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201, 168, 76, 0.1);
+  }
+
+  .index-item .idx-num {
+    color: var(--gold);
+    opacity: .5;
+    font-size: .75rem;
+    margin-right: .4rem;
+  }
+
+  .close-modal {
+    display: block;
+    margin: 1.5rem auto 0;
+    background: none;
+    border: 1px solid #ffffff22;
+    color: #8a7d60;
+    padding: .5rem 2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all .2s;
+    font-size: .85rem;
+  }
+  .close-modal:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Título de la web fijo arriba a la izquierda */
+  .slide-label {
+    position: fixed;
+    top: 1.5rem;
+    left: 1.8rem;
+    font-size: .72rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #a09070;
+    z-index: 100;
+    text-shadow: 0 0 5px rgba(0,0,0,0.5);
+  }
+
+  /* Pista de teclado */
+  .hint {
+    position: fixed;
+    bottom: 6.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: .7rem;
+    color: #5a5040;
+    letter-spacing: .1em;
+    z-index: 100;
+  }
+
+</style>
 </head>
 <body>
 
-<div id="map-container">
-    <div class="header">
-        <h1>Diario de Navegación: 1492</h1>
-        <p>Pasa el cursor por la ruta roja para descubrir la historia</p>
-    </div>
+<div class="slide-label">La Gran Travesía de 1492</div>
 
-    <img src="https://upload.wikimedia.org/wikipedia/commons/d/d4/Compass_rose_paleo.svg" class="compass" alt="Rosa de los vientos">
+<button id="index-btn">Índice ▾</button>
 
-    <div class="label" id="label-europe">EUROPA</div>
-    <div class="label" id="label-africa">AFRICA</div>
-    <div class="label" id="label-america">LAS INDIAS</div>
-
-    <svg id="map-svg" viewBox="0 0 1000 600">
-        <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="maroon" />
-            </marker>
-        </defs>
-
-        <path id="route1" class="route-line" 
-              d="M 850,180 Q 750,250 820,320 T 450,380 T 150,420" 
-              marker-mid="url(#arrowhead)" />
-
-        <circle class="landmark" cx="850" cy="180" r="8" data-title="Puerto de Palos" data-info="3 de Agosto de 1492: Colón parte con tres naves: La Pinta, La Niña y la Santa María. El objetivo era llegar a Asia por el oeste." />
-        <circle class="landmark" cx="810" cy="310" r="8" data-title="Islas Canarias" data-info="6 de Agosto - 6 de Septiembre: Escala técnica para reparaciones en La Pinta y reabastecimiento de víveres. Fue la última tierra firme antes del gran salto." />
-        <circle class="landmark" cx="550" cy="360" r="8" data-title="El Mar de los Sargazos" data-info="Septiembre: Los marineros se asustan al ver algas flotando, pensando que encallarían. El descontento y el miedo al abismo empiezan a crecer." />
-        <circle class="landmark" cx="300" cy="400" r="8" data-title="El Intento de Motín" data-info="10 de Octubre: La tripulación, desesperada tras semanas sin ver tierra, intenta sublevarse. Colón pide 3 días más de margen." />
-        <circle class="landmark" cx="150" cy="420" r="10" data-title="¡Tierra a la Vista!" data-info="12 de Octubre de 1492: Rodrigo de Triana avista tierra. Desembarcan en Guanahaní (Bahamas), bautizada como San Salvador. ¡El mundo cambió para siempre!" />
-    </svg>
-
-    <div id="info-box">
-        <h3 id="info-title">Punto de interés</h3>
-        <p id="info-text">Selecciona un punto del mapa para leer el diario de a bordo.</p>
-    </div>
+<div id="index-modal">
+  <div class="index-inner">
+    <h3>Diario de a Bordo</h3>
+    <div class="index-grid" id="index-grid"></div>
+    <button class="close-modal" onclick="closeIndex()">Cerrar</button>
+  </div>
 </div>
 
+<div id="deck"></div>
+
+<div id="progress"><div id="progress-bar"></div></div>
+
+<div id="nav">
+  <button id="prev" onclick="move(-1)">←</button>
+  <span id="counter">0 / 0</span>
+  <button id="next" onclick="move(1)">→</button>
+</div>
+
+<p class="hint">← → teclas o botones para navegar</p>
+
 <script>
-    const landmarks = document.querySelectorAll('.landmark');
-    const infoBox = document.getElementById('info-box');
-    const infoTitle = document.getElementById('info-title');
-    const infoText = document.getElementById('info-text');
-    const route = document.getElementById('route1');
+// Base de datos de la travesía (Contenido de Colón)
+const HITOS = [
+  {
+    title: "El Proyecto de las Indias",
+    date: "1480 - 1492",
+    meaning: "Cristóbal Colón, un navegante genovés, madura una idea revolucionaria: llegar a las ricas tierras de **Cipango (Japón) y Cathay (China)** navegando hacia el **Oeste**, cruzando la 'Mar Oceana'. Tras años de rechazo en Portugal, busca el apoyo de los Reyes Católicos de España.",
+    quote: "«Buscar el Levante por el Poniente» — Máxima del proyecto de Colón.",
+    coord: "Lisboa / Santa Fe"
+  },
+  {
+    title: "Las Capitulaciones de Santa Fe",
+    date: "17 de Abril de 1492",
+    meaning: "Se firma el acuerdo entre Colón y los Reyes Católicos. Colón recibe financiación y los títulos de **Almirante, Virrey y Gobernador** de las tierras que descubra, además de un décimo de las riquezas obtenidas. Es la luz verde para la expedición.",
+    quote: "Un contrato comercial y político que cambió la historia del mundo.",
+    coord: "Granada, España"
+  },
+  {
+    title: "La Partida de Palos",
+    date: "3 de Agosto de 1492",
+    meaning: "La expedición, compuesta por dos carabelas (**La Pinta** y **La Niña**) y una nao (**La Santa María**), y unos 90 hombres, zarpa del puerto de Palos de la Frontera (Huelva). Comienza la travesía hacia lo desconocido.",
+    quote: "«Zarpamos antes de salir el sol, con fuerte viento...» — Extracto del diario de Colón.",
+    coord: "37°13'N 6°53'W"
+  },
+  {
+    title: "Escala en Canarias",
+    date: "6 Ago - 6 Sep 1492",
+    meaning: "Las naves llegan a las Islas Canarias para reparaciones técnicas (especialmente en el timón de La Pinta) y para reabastecerse de víveres y agua. Es la **última tierra conocida** antes de adentrarse en el Océano Atlántico.",
+    quote: "El salto definitivo hacia el abismo inexplorado.",
+    coord: "28°06'N 15°24'W"
+  },
+  {
+    title: "El Océano Desconocido",
+    date: "Septiembre de 1492",
+    meaning: "La flota navega semanas hacia el Oeste con vientos alisios favorables. Sin embargo, la **distancia sin ver tierra** provoca temor entre la tripulación. Se cruza el enigmático Mar de los Sargazos, lleno de algas flotantes.",
+    quote: "El miedo al abismo y la leyenda de los monstruos marinos acechan.",
+    coord: "Océano Atlántico"
+  },
+  {
+    title: "La Tensión y el Motín",
+    date: "10 de Octubre de 1492",
+    meaning: "La desesperación alcanza su punto crítico. Tras más de un mes de navegación sin avistamientos, la tripulación, asustada por no poder regresar contra el viento, intenta sublevarse. Colón pide **tres días de margen** para encontrar tierra.",
+    quote: "«Aquí la gente ya no podía sufrir...» — Tensión máxima a bordo.",
+    coord: "Aprox. 24°N 70°W"
+  },
+  {
+    title: "¡Tierra a la Vista!",
+    date: "12 de Octubre de 1492",
+    meaning: "A las dos de la mañana, el marinero **Rodrigo de Triana**, desde La Pinta, avista tierra. Por la mañana, desembarcan en una isla de las Bahamas, que los nativos llamaban Guanahaní. Colón la bautiza como **San Salvador**.",
+    quote: "«¡Tierra! ¡Tierra!» — El grito que unió dos mundos.",
+    coord: "24°01'N 74°30'W"
+  },
+  {
+    title: "El Encuentro de Dos Mundos",
+    date: "12 de Octubre de 1492",
+    meaning: "Colón toma posesión de la isla en nombre de los Reyes Católicos. Tiene lugar el primer contacto pacífico con los indígenas taínos. Colón, convencido de haber llegado a Asia, los llama **'indios'**.",
+    quote: "El inicio de una nueva era de intercambios, conquistas y choques culturales.",
+    coord: "Guanahaní, Bahamas"
+  },
+  {
+    title: "La Navidad y el Regreso",
+    date: "Dic 149Regreso",
+    meaning: "La Santa María encalla en Nochebuena en La Española (Haití). Con sus restos construyen el **Fuerte Navidad**, primer asentamiento español. Colón emprende el viaje de regreso en La Niña el 16 de enero de 1493, llevando muestras de oro, plantas y nativos.",
+    quote: "El Almirante regresa para anunciar su 'victoria' a Europa.",
+    coord: "La Española"
+  }
+];
 
-    // Función para mostrar información
-    function showInfo(title, text) {
-        infoTitle.innerText = title;
-        infoText.innerHTML = text;
-        infoBox.classList.add('active');
-    }
+let current = 0;
 
-    // Eventos para los puntos (círculos)
-    landmarks.forEach(point => {
-        point.addEventListener('mouseenter', () => {
-            showInfo(point.getAttribute('data-title'), point.getAttribute('data-info'));
-        });
-        point.addEventListener('mouseleave', () => {
-            infoBox.classList.remove('active');
-        });
-    });
+function init() {
+  const deck = document.getElementById('deck');
+  const grid = document.getElementById('index-grid');
 
-    // Evento especial para la línea de ruta (general)
-    route.addEventListener('mouseenter', () => {
-        showInfo("Primer Viaje de Colón", "Salió de Palos de la Frontera en 1492 financiado por los Reyes Católicos. Esta línea roja representa los más de 2 meses de angustia y descubrimiento en el Océano Atlántico.");
-    });
-    
-    route.addEventListener('mouseleave', () => {
-        infoBox.classList.remove('active');
-    });
+  // Slide 0: Portada (Estilo Cristal)
+  const cover = document.createElement('div');
+  cover.className = 'slide cover active';
+  cover.innerHTML = `
+    <div class="glass-panel">
+        <div class="ornament">🙶 ☙ 🙴</div>
+        <h1>La Gran <em>Travesía</em></h1>
+        <div class="line"></div>
+        <p>El Primer Viaje de Colón a las Indias (1492)</p>
+    </div>
+  `;
+  deck.appendChild(cover);
+
+  // Generar Slides de Contenido (Hitos)
+  HITOS.forEach((t, i) => {
+    const slide = document.createElement('div');
+    slide.className = 'slide topic';
+    slide.innerHTML = `
+      <div class="glass-panel">
+          <div class="topic-header">
+            <span class="topic-number">${(i + 1).toString().padStart(2, '0')}</span>
+            <h2>${t.title} <span class="date">${t.date}</span></h2>
+          </div>
+          <div class="divider"></div>
+          <p class="meaning">${t.meaning}</p>
+          <div class="quote-box">
+            <p>${t.quote}</p>
+          </div>
+          <div class="map-marker">${t.coord}</div>
+      </div>
+    `;
+    deck.appendChild(slide);
+
+    // Grid del Índice
+    const idxItem = document.createElement('div');
+    idxItem.className = 'index-item';
+    idxItem.innerHTML = `<span class="idx-num">${i + 1}</span> ${t.title}`;
+    idxItem.onclick = () => { goTo(i + 1); closeIndex(); };
+    grid.appendChild(idxItem);
+  });
+
+  updateNav();
+}
+
+// Lógica de navegación (Mantenida exactamente igual)
+function move(dir) {
+  const slides = document.querySelectorAll('.slide');
+  if (current + dir < 0 || current + dir >= slides.length) return;
+
+  slides[current].classList.remove('active');
+  slides[current].classList.add('exit');
+
+  current += dir;
+
+  setTimeout(() => {
+    slides.forEach(s => s.classList.remove('exit'));
+    slides[current].classList.add('active');
+    updateNav();
+  }, 50); // Tiempo breve para asegurar la transición suave
+}
+
+function goTo(index) {
+  const slides = document.querySelectorAll('.slide');
+  slides.forEach(s => s.classList.remove('active', 'exit'));
+  current = index;
+  slides[current].classList.add('active');
+  updateNav();
+}
+
+function updateNav() {
+  const slides = document.querySelectorAll('.slide');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const counterLabel = document.getElementById('counter');
+  const progressBar = document.getElementById('progress-bar');
+
+  prevBtn.disabled = current === 0;
+  nextBtn.disabled = current === slides.length - 1;
+  
+  counterLabel.innerText = `${current} / ${slides.length - 1}`;
+  
+  // Barra de progreso
+  const progressPercent = (current / (slides.length - 1)) * 100;
+  progressBar.style.width = `${progressPercent}%`;
+}
+
+// Lógica del Índice
+document.getElementById('index-btn').onclick = () => document.getElementById('index-modal').classList.add('open');
+window.closeIndex = () => document.getElementById('index-modal').classList.remove('open');
+
+// Navegación por teclado
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') move(1);
+  if (e.key === 'ArrowLeft') move(-1);
+  if (e.key === 'Escape') closeIndex();
+});
+
+// Arrancar
+init();
 
 </script>
-
 </body>
 </html>
